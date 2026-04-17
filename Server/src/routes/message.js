@@ -8,11 +8,8 @@ import { messageStore } from '../store.js';
 
 const router = express.Router();
 
-// Frontend origin for share URLs
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
-
 // POST /api/message
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
     const { content, destroyOnRead } = req.body;
 
     if (!content) {
@@ -24,7 +21,8 @@ router.post('/', (req, res) => {
     }
 
     const sessionId = nanoid(12);
-    const expiresAt = Date.now() + (parseInt(process.env.SESSION_TTL_MESSAGE_MIN) || 5) * 60000;
+    const ttlMs = (parseInt(process.env.SESSION_TTL_MESSAGE_MIN) || 5) * 60000;
+    const expiresAt = Date.now() + ttlMs;
 
     const session = {
         id: sessionId,
@@ -35,7 +33,7 @@ router.post('/', (req, res) => {
         destroyOnRead: destroyOnRead === true
     };
 
-    messageStore.set(sessionId, session);
+    await messageStore.set(sessionId, session, ttlMs);
 
     // Determine the frontend origin dynamically if not set
     const origin = process.env.CLIENT_ORIGIN || `${req.protocol}://${req.get('host')}`.replace(':5000', ':5173');
@@ -48,9 +46,10 @@ router.post('/', (req, res) => {
 });
 
 // GET /api/message/:id
-router.get('/:id', (req, res) => {
-    const session = messageStore.get(req.params.id);
+router.get('/:id', async (req, res) => {
+    const session = await messageStore.get(req.params.id);
 
+    // Redis auto-deletes expired keys, so null = expired or never existed
     if (!session || Date.now() > session.expiresAt) {
         return res.status(404).json({ error: 'Message not found or expired' });
     }
@@ -63,14 +62,14 @@ router.get('/:id', (req, res) => {
 });
 
 // DELETE /api/message/:id — called when user confirms they've read the message
-router.delete('/:id', (req, res) => {
-    const session = messageStore.get(req.params.id);
+router.delete('/:id', async (req, res) => {
+    const session = await messageStore.get(req.params.id);
 
     if (!session) {
         return res.status(404).json({ error: 'Message not found or already destroyed' });
     }
 
-    messageStore.delete(req.params.id);
+    await messageStore.delete(req.params.id);
     console.log(`[Store] Message ${req.params.id} confirmed read and destroyed.`);
     res.json({ message: 'Secret destroyed successfully' });
 });

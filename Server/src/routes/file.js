@@ -12,9 +12,6 @@ import { uploadToCloudinary, buildCloudinaryDeliveryUrl } from '../utils/cloudin
 
 const router = express.Router();
 
-// Frontend origin for share URLs
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
-
 // Multer: memory storage — no local disk writes
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -29,7 +26,8 @@ router.post('/upload', upload.array('files', 5), async (req, res) => {
         }
 
         const sessionId = nanoid(10);
-        const expiresAt = Date.now() + (parseInt(process.env.SESSION_TTL_FILE_MIN) || 7) * 60000;
+        const ttlMs = (parseInt(process.env.SESSION_TTL_FILE_MIN) || 7) * 60000;
+        const expiresAt = Date.now() + ttlMs;
 
         // Upload all files to Cloudinary in parallel
         const uploadedFiles = await Promise.all(
@@ -58,7 +56,7 @@ router.post('/upload', upload.array('files', 5), async (req, res) => {
             expiresAt,
         };
 
-        fileStore.set(sessionId, session);
+        await fileStore.set(sessionId, session, ttlMs);
         console.log(`[Upload] Session ${sessionId} created — ${uploadedFiles.length} file(s) on Cloudinary`);
 
         // Determine the frontend origin dynamically if not set
@@ -79,7 +77,7 @@ router.post('/upload', upload.array('files', 5), async (req, res) => {
 // MUST be before /:id to avoid route capture
 router.get('/download/:id/:fileIndex', async (req, res) => {
     const { id, fileIndex } = req.params;
-    const session = fileStore.get(id);
+    const session = await fileStore.get(id);
 
     if (!session || Date.now() > session.expiresAt) {
         return res.status(404).json({ error: 'Session not found or expired' });
@@ -123,17 +121,18 @@ router.get('/download/:id/:fileIndex', async (req, res) => {
             res.end(fileBuffer);
         }
 
-        // Mark downloaded after headers are sent
+        // Mark downloaded and persist updated session
         session.files[idx].downloaded = true;
 
         // Check if all files are now claimed
         const allDownloaded = session.files.every(f => f.downloaded);
         if (allDownloaded) {
             console.log(`[Store] All files claimed for session ${id}. Purging immediately...`);
-            // Set expiry to 0 to signal frontend immediately
             session.expiresAt = 0;
-            // Immediate purge (includes Cloudinary deletion)
+            await fileStore.update(id, session);
             await purgeFileSession(id, session);
+        } else {
+            await fileStore.update(id, session);
         }
     } catch (err) {
         console.error('[Download] Proxy error:', err);
@@ -144,8 +143,8 @@ router.get('/download/:id/:fileIndex', async (req, res) => {
 });
 
 // GET /api/file/:id  — session metadata (after /download to avoid collision)
-router.get('/:id', (req, res) => {
-    const session = fileStore.get(req.params.id);
+router.get('/:id', async (req, res) => {
+    const session = await fileStore.get(req.params.id);
 
     if (!session) {
         return res.status(404).json({ error: 'Session not found or expired' });
