@@ -1,0 +1,30 @@
+# render.yaml — Render Blueprint for auto-deploy
+# Place this at the repo root so Render can discover the Server service.
+services:
+  - type: web
+    name: ephemeraldrop-server
+    runtime: node
+    rootDir: Server
+    buildCommand: npm install
+    startCommand: npm start
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MAX_FILE_SIZE_MB
+        value: "60"
+      - key: SESSION_TTL_FILE_MIN
+        value: "7"
+      - key: SESSION_TTL_MESSAGE_MIN
+        value: "5"
+      - key: CLIENT_ORIGIN
+        sync: false  # Set manually in Render dashboard
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: CLOUDINARY_FOLDER
+        value: ephemeraldrop

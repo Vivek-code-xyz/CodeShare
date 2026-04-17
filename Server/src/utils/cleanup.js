@@ -1,27 +1,30 @@
 /**
  * server/src/utils/cleanup.js
- * Purge utility for file sessions.
- * Note: In production with Redis, key expiry is handled natively by Redis TTL.
- * The cleanup job is only active in dev (in-memory) mode.
+ * Periodically purge expired sessions and delete associated Cloudinary files.
  */
 import { fileStore, messageStore } from '../store.js';
 import { deleteFromCloudinary } from './cloudinary.js';
 
-// Only used in dev (in-memory Maps don't auto-expire)
 export const startCleanupJob = () => {
-    if (process.env.UPSTASH_REDIS_REST_URL) {
-        console.log('[Cleanup] Redis TTL handles expiry in production. Cleanup job skipped.');
-        return;
-    }
-
     setInterval(async () => {
         const now = Date.now();
 
-        // The in-memory store doesn't have an .entries() method in our new async API,
-        // but for dev we access the underlying map directly via a best-effort cleanup.
-        // This is fine for development — Redis handles it in production.
-        console.log('[Cleanup] Running dev cleanup pass...');
-    }, 60000);
+        // Cleanup expired file sessions
+        for (const [id, session] of fileStore.entries()) {
+            if (now > session.expiresAt) {
+                console.log(`[Cleanup] File session ${id} expired. Purging from Cloudinary...`);
+                await purgeFileSession(id, session);
+            }
+        }
+
+        // Cleanup expired message sessions
+        for (const [id, session] of messageStore.entries()) {
+            if (now > session.expiresAt) {
+                console.log(`[Cleanup] Message session ${id} expired. Purging...`);
+                messageStore.delete(id);
+            }
+        }
+    }, 60000); // Run every 60s
 };
 
 export const purgeFileSession = async (id, session) => {
@@ -32,5 +35,5 @@ export const purgeFileSession = async (id, session) => {
             }
         }
     }
-    await fileStore.delete(id);
+    fileStore.delete(id);
 };

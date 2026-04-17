@@ -26,8 +26,7 @@ router.post('/upload', upload.array('files', 5), async (req, res) => {
         }
 
         const sessionId = nanoid(10);
-        const ttlMs = (parseInt(process.env.SESSION_TTL_FILE_MIN) || 7) * 60000;
-        const expiresAt = Date.now() + ttlMs;
+        const expiresAt = Date.now() + (parseInt(process.env.SESSION_TTL_FILE_MIN) || 7) * 60000;
 
         // Upload all files to Cloudinary in parallel
         const uploadedFiles = await Promise.all(
@@ -56,11 +55,11 @@ router.post('/upload', upload.array('files', 5), async (req, res) => {
             expiresAt,
         };
 
-        await fileStore.set(sessionId, session, ttlMs);
+        fileStore.set(sessionId, session);
         console.log(`[Upload] Session ${sessionId} created — ${uploadedFiles.length} file(s) on Cloudinary`);
 
-        // Determine the frontend origin dynamically if not set
-        const origin = process.env.CLIENT_ORIGIN || `${req.protocol}://${req.get('host')}`.replace(':5000', ':5173');
+        // Determine the frontend origin dynamically
+        const origin = process.env.CLIENT_ORIGIN || `${req.protocol}://${req.get('host')}`.replace(`:${process.env.PORT || 5000}`, ':5173');
 
         res.json({
             id: sessionId,
@@ -73,11 +72,10 @@ router.post('/upload', upload.array('files', 5), async (req, res) => {
     }
 });
 
-// GET /api/file/download/:id/:fileIndex  — proxy stream (Cloudinary URL never exposed)
-// MUST be before /:id to avoid route capture
+// GET /api/file/download/:id/:fileIndex — proxy stream (Cloudinary URL never exposed)
 router.get('/download/:id/:fileIndex', async (req, res) => {
     const { id, fileIndex } = req.params;
-    const session = await fileStore.get(id);
+    const session = fileStore.get(id);
 
     if (!session || Date.now() > session.expiresAt) {
         return res.status(404).json({ error: 'Session not found or expired' });
@@ -93,7 +91,6 @@ router.get('/download/:id/:fileIndex', async (req, res) => {
         const preferredUrl = buildCloudinaryDeliveryUrl(file.publicId, file.resourceType, file.originalName);
         const fallbackUrl = file.secureUrl;
 
-        // Fetch from Cloudinary server-side with a fallback URL strategy.
         let cloudRes = await fetch(preferredUrl);
         if (!cloudRes.ok && fallbackUrl && fallbackUrl !== preferredUrl) {
             cloudRes = await fetch(fallbackUrl);
@@ -103,7 +100,6 @@ router.get('/download/:id/:fileIndex', async (req, res) => {
             return res.status(502).json({ error: 'Failed to retrieve file from storage' });
         }
 
-        // Set headers so browser saves it with the original filename
         res.setHeader('Content-Type', file.mimeType || 'application/octet-stream');
         res.setHeader(
             'Content-Disposition',
@@ -113,7 +109,6 @@ router.get('/download/:id/:fileIndex', async (req, res) => {
             res.setHeader('Content-Length', cloudRes.headers.get('content-length'));
         }
 
-        // Convert Web ReadableStream -> Node Readable, then pipe to client.
         if (cloudRes.body) {
             Readable.fromWeb(cloudRes.body).pipe(res);
         } else {
@@ -121,7 +116,7 @@ router.get('/download/:id/:fileIndex', async (req, res) => {
             res.end(fileBuffer);
         }
 
-        // Mark downloaded and persist updated session
+        // Mark downloaded
         session.files[idx].downloaded = true;
 
         // Check if all files are now claimed
@@ -129,10 +124,7 @@ router.get('/download/:id/:fileIndex', async (req, res) => {
         if (allDownloaded) {
             console.log(`[Store] All files claimed for session ${id}. Purging immediately...`);
             session.expiresAt = 0;
-            await fileStore.update(id, session);
             await purgeFileSession(id, session);
-        } else {
-            await fileStore.update(id, session);
         }
     } catch (err) {
         console.error('[Download] Proxy error:', err);
@@ -142,9 +134,9 @@ router.get('/download/:id/:fileIndex', async (req, res) => {
     }
 });
 
-// GET /api/file/:id  — session metadata (after /download to avoid collision)
-router.get('/:id', async (req, res) => {
-    const session = await fileStore.get(req.params.id);
+// GET /api/file/:id — session metadata
+router.get('/:id', (req, res) => {
+    const session = fileStore.get(req.params.id);
 
     if (!session) {
         return res.status(404).json({ error: 'Session not found or expired' });
