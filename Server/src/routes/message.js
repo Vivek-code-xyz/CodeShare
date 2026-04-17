@@ -37,9 +37,12 @@ router.post('/', (req, res) => {
 
     messageStore.set(sessionId, session);
 
+    // Determine the frontend origin dynamically if not set
+    const origin = process.env.CLIENT_ORIGIN || `${req.protocol}://${req.get('host')}`.replace(':5000', ':5173');
+
     res.json({
         id: sessionId,
-        shareUrl: `${CLIENT_ORIGIN}/message/${sessionId}`,
+        shareUrl: `${origin}/message/${sessionId}`,
         expiresAt
     });
 });

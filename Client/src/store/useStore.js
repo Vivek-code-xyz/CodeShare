@@ -33,7 +33,12 @@ const useStore = create(
     }),
     {
       name: 'ephemeral-drop-storage',
-      partialize: (state) => ({ theme: state.theme, font: state.font }),
+      partialize: (state) => ({
+        theme: state.theme,
+        font: state.font,
+        uploadSession: state.uploadSession,
+        messageSession: state.messageSession,
+      }),
     }
   )
 );

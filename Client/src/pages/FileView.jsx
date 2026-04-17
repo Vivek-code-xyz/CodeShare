@@ -4,19 +4,21 @@ import axios from 'axios';
 import { motion } from 'framer-motion';
 import { DownloadIcon, FileIcon, ShieldAlertIcon, HardDriveIcon, ArrowLeftIcon, CheckCircle2Icon } from 'lucide-react';
 import CountdownTimer from '../components/CountdownTimer';
+import { getApiUrl } from '../lib/api';
 
 const FileView = () => {
   const { id } = useParams();
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [downloadError, setDownloadError] = useState(null);
   const [downloadedFiles, setDownloadedFiles] = useState(new Set());
   const [allDone, setAllDone] = useState(false);
 
   useEffect(() => {
     const fetchSession = async () => {
       try {
-        const response = await axios.get(`http://${window.location.hostname}:5000/api/file/${id}`);
+        const response = await axios.get(getApiUrl(`/api/file/${id}`));
         setSession(response.data);
         // Pre-fill already-downloaded files from server state
         const alreadyDownloaded = new Set();
@@ -35,9 +37,22 @@ const FileView = () => {
 
   const handleDownload = async (index) => {
     const file = session.files[index];
+    const downloadUrl = getApiUrl(`/api/file/download/${id}/${index}`);
+
     try {
-      const res = await fetch(`http://${window.location.hostname}:5000/api/file/download/${id}/${index}`);
-      if (!res.ok) throw new Error('Download failed');
+      setDownloadError(null);
+
+      const res = await fetch(downloadUrl);
+      if (!res.ok) {
+        let message = 'Download failed';
+        try {
+          const data = await res.json();
+          if (data?.error) message = data.error;
+        } catch {
+          // keep default message
+        }
+        throw new Error(message);
+      }
 
       const blob = await res.blob();
       const objectUrl = URL.createObjectURL(blob);
@@ -45,11 +60,11 @@ const FileView = () => {
       const a = document.createElement('a');
       a.href = objectUrl;
       a.download = file.originalName || `file-${index}`;
+      a.rel = 'noopener noreferrer';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
 
-      // Revoke object URL after a short delay
       setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
 
       // Mark locally as downloaded
@@ -63,13 +78,14 @@ const FileView = () => {
       });
     } catch (err) {
       console.error(`[Download] File ${index} failed:`, err);
+      setDownloadError(err.message || 'Download failed. Please try again.');
     }
   };
 
-  const handleDownloadAll = () => {
+  const handleDownloadAll = async () => {
     session.files.forEach((_, idx) => {
       if (!downloadedFiles.has(idx)) {
-        setTimeout(() => handleDownload(idx), idx * 800);
+        handleDownload(idx);
       }
     });
   };
@@ -176,13 +192,17 @@ const FileView = () => {
           </div>
           
           {remainingCount > 0 && (
-            <button 
+            <button
               onClick={handleDownloadAll}
               className="w-full py-4 bg-accent text-surface rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm hover:scale-[1.01] active:scale-95 transition-all"
             >
               <DownloadIcon size={20} />
               Download {remainingCount === session.files.length ? 'All' : 'Remaining'} Files ({remainingCount})
             </button>
+          )}
+
+          {downloadError && (
+            <p className="text-danger text-sm text-center">{downloadError}</p>
           )}
         </div>
 

@@ -4,6 +4,7 @@ import axios from 'axios';
 import { motion } from 'framer-motion';
 import { GhostIcon, ClockIcon, ShieldAlertIcon, ArrowLeftIcon, Trash2Icon, CopyIcon, CheckIcon, CheckCircle2Icon } from 'lucide-react';
 import CountdownTimer from '../components/CountdownTimer';
+import { getApiUrl } from '../lib/api';
 
 const MessageView = () => {
   const { id } = useParams();
@@ -31,7 +32,7 @@ const MessageView = () => {
 
     // Destroy the message on the server
     try {
-      await axios.delete(`http://${window.location.hostname}:5000/api/message/${id}`);
+      await axios.delete(getApiUrl(`/api/message/${id}`));
     } catch (err) {
       // Already destroyed or expired — that's fine
     }
@@ -40,7 +41,7 @@ const MessageView = () => {
   useEffect(() => {
     const fetchMessage = async () => {
       try {
-        const response = await axios.get(`http://${window.location.hostname}:5000/api/message/${id}`);
+        const response = await axios.get(getApiUrl(`/api/message/${id}`));
         setSession(response.data);
       } catch (err) {
         setError(err.response?.data?.error || 'This secret has self-destructed.');

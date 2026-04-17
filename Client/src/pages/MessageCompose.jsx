@@ -5,6 +5,7 @@ import { ShieldCheckIcon, Loader2Icon, ArrowLeftIcon, SparklesIcon, Trash2Icon }
 import { Link } from 'react-router-dom';
 import useStore from '../store/useStore';
 import ShareLinkBox from '../components/ShareLinkBox';
+import { getApiUrl } from '../lib/api';
 
 const MessageCompose = () => {
   const [content, setContent] = useState('');
@@ -13,6 +14,12 @@ const MessageCompose = () => {
   const [error, setError] = useState(null);
   const { messageSession, setMessageSession } = useStore();
 
+  React.useEffect(() => {
+    if (messageSession && messageSession.expiresAt && Date.now() > messageSession.expiresAt) {
+      setMessageSession(null);
+    }
+  }, [messageSession, setMessageSession]);
+
   const handleCreate = async () => {
     if (!content.trim()) return;
 
@@ -20,7 +27,7 @@ const MessageCompose = () => {
     setError(null);
 
     try {
-      const response = await axios.post(`http://${window.location.hostname}:5000/api/message`, {
+      const response = await axios.post(getApiUrl('/api/message'), {
         content,
         destroyOnRead
       });

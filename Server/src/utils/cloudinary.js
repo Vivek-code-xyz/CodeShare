@@ -51,6 +51,21 @@ export const uploadToCloudinary = (buffer, originalName, mimeType) => {
 };
 
 /**
+ * Build a deterministic delivery URL for a stored Cloudinary asset.
+ * Using SDK-generated URLs helps when provider-returned secure_url varies by resource type.
+ */
+export const buildCloudinaryDeliveryUrl = (publicId, resourceType = 'raw', attachmentName) => {
+    configure();
+    return cloudinary.url(publicId, {
+        resource_type: resourceType,
+        type: 'upload',
+        secure: true,
+        sign_url: false,
+        attachment: attachmentName || true,
+    });
+};
+
+/**
  * Delete a file from Cloudinary by its public_id.
  */
 export const deleteFromCloudinary = async (publicId, resourceType = 'raw') => {

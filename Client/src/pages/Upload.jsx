@@ -8,11 +8,18 @@ import axios from 'axios';
 import { AlertCircleIcon, Loader2Icon, ArrowLeftIcon, SparklesIcon, ClockIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import CountdownTimer from '../components/CountdownTimer';
+import { getApiUrl } from '../lib/api';
 
 const Upload = () => {
   const { uploadFiles, addFiles, removeFile, uploadSession, setUploadSession, clearUploadFiles } = useStore();
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState(null);
+
+  React.useEffect(() => {
+    if (uploadSession && uploadSession.expiresAt && Date.now() > uploadSession.expiresAt) {
+      setUploadSession(null);
+    }
+  }, [uploadSession, setUploadSession]);
 
   const handleUpload = async () => {
     if (uploadFiles.length === 0) return;
@@ -24,7 +31,7 @@ const Upload = () => {
     uploadFiles.forEach(file => formData.append('files', file));
 
     try {
-      const response = await axios.post(`http://${window.location.hostname}:5000/api/file/upload`, formData, {
+      const response = await axios.post(getApiUrl('/api/file/upload'), formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       // Force correct frontend origin on share link regardless of backend reply

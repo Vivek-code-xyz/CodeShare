@@ -8,7 +8,7 @@ import { nanoid } from 'nanoid';
 import { Readable } from 'stream';
 import { fileStore } from '../store.js';
 import { purgeFileSession } from '../utils/cleanup.js';
-import { uploadToCloudinary } from '../utils/cloudinary.js';
+import { uploadToCloudinary, buildCloudinaryDeliveryUrl } from '../utils/cloudinary.js';
 
 const router = express.Router();
 
@@ -61,9 +61,12 @@ router.post('/upload', upload.array('files', 5), async (req, res) => {
         fileStore.set(sessionId, session);
         console.log(`[Upload] Session ${sessionId} created — ${uploadedFiles.length} file(s) on Cloudinary`);
 
+        // Determine the frontend origin dynamically if not set
+        const origin = process.env.CLIENT_ORIGIN || `${req.protocol}://${req.get('host')}`.replace(':5000', ':5173');
+
         res.json({
             id: sessionId,
-            shareUrl: `${CLIENT_ORIGIN}/file/${sessionId}`,
+            shareUrl: `${origin}/file/${sessionId}`,
             expiresAt,
         });
     } catch (err) {
@@ -89,8 +92,15 @@ router.get('/download/:id/:fileIndex', async (req, res) => {
     }
 
     try {
-        // Fetch the file from Cloudinary server-side
-        const cloudRes = await fetch(file.secureUrl);
+        const preferredUrl = buildCloudinaryDeliveryUrl(file.publicId, file.resourceType, file.originalName);
+        const fallbackUrl = file.secureUrl;
+
+        // Fetch from Cloudinary server-side with a fallback URL strategy.
+        let cloudRes = await fetch(preferredUrl);
+        if (!cloudRes.ok && fallbackUrl && fallbackUrl !== preferredUrl) {
+            cloudRes = await fetch(fallbackUrl);
+        }
+
         if (!cloudRes.ok) {
             return res.status(502).json({ error: 'Failed to retrieve file from storage' });
         }
@@ -105,19 +115,25 @@ router.get('/download/:id/:fileIndex', async (req, res) => {
             res.setHeader('Content-Length', cloudRes.headers.get('content-length'));
         }
 
-        // Convert Web ReadableStream → Node Readable, then pipe to client
-        Readable.fromWeb(cloudRes.body).pipe(res);
+        // Convert Web ReadableStream -> Node Readable, then pipe to client.
+        if (cloudRes.body) {
+            Readable.fromWeb(cloudRes.body).pipe(res);
+        } else {
+            const fileBuffer = Buffer.from(await cloudRes.arrayBuffer());
+            res.end(fileBuffer);
+        }
 
         // Mark downloaded after headers are sent
         session.files[idx].downloaded = true;
 
-        // Schedule purge if all files claimed
+        // Check if all files are now claimed
         const allDownloaded = session.files.every(f => f.downloaded);
         if (allDownloaded) {
-            console.log(`[Store] All files claimed for session ${id}. Purging in 15s...`);
-            setTimeout(async () => {
-                await purgeFileSession(id, session);
-            }, 15000);
+            console.log(`[Store] All files claimed for session ${id}. Purging immediately...`);
+            // Set expiry to 0 to signal frontend immediately
+            session.expiresAt = 0;
+            // Immediate purge (includes Cloudinary deletion)
+            await purgeFileSession(id, session);
         }
     } catch (err) {
         console.error('[Download] Proxy error:', err);
