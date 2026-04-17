@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { DownloadIcon, FileIcon, ShieldAlertIcon, HardDriveIcon, ArrowLeftIcon, CheckCircle2Icon } from 'lucide-react';
 import CountdownTimer from '../components/CountdownTimer';
 import { getApiUrl } from '../lib/api';
@@ -14,6 +14,7 @@ const FileView = () => {
   const [downloadError, setDownloadError] = useState(null);
   const [downloadedFiles, setDownloadedFiles] = useState(new Set());
   const [allDone, setAllDone] = useState(false);
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
 
   useEffect(() => {
     const fetchSession = async () => {
@@ -73,6 +74,10 @@ const FileView = () => {
         next.add(index);
         if (session && next.size >= session.files.length) {
           setAllDone(true);
+        } else {
+          // Show success toast/popup for individual file
+          setShowSuccessPopup(true);
+          setTimeout(() => setShowSuccessPopup(false), 3000);
         }
         return next;
       });
@@ -141,8 +146,21 @@ const FileView = () => {
     <motion.div 
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      className="max-w-3xl mx-auto py-12 space-y-8"
+      className="max-w-3xl mx-auto py-8 px-4 space-y-6 md:space-y-8"
     >
+      <AnimatePresence>
+        {showSuccessPopup && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, x: '-50%' }}
+            animate={{ opacity: 1, y: 20, x: '-50%' }}
+            exit={{ opacity: 0, y: -20, x: '-50%' }}
+            className="fixed top-0 left-1/2 z-50 px-6 py-3 bg-accent text-surface rounded-full shadow-2xl font-bold flex items-center gap-2"
+          >
+            <CheckCircle2Icon size={18} />
+            <span>File Shared Successfully!</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <div className="flex items-center justify-between">
           <Link to="/" className="p-2 -ml-2 text-muted hover:text-text transition-colors">
             <ArrowLeftIcon size={20} />
@@ -178,11 +196,14 @@ const FileView = () => {
                         <p className="text-xs text-muted font-mono">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
                       </div>
                     </div>
-                    <div className="p-2">
+                    <div className="p-2 flex flex-col items-end gap-1">
                       {isDownloaded ? (
                         <CheckCircle2Icon size={20} className="text-accent" />
                       ) : (
-                        <DownloadIcon size={20} className="text-muted opacity-0 group-hover:opacity-100 group-hover:text-accent transition-all" />
+                        <>
+                          <DownloadIcon size={20} className="text-muted group-hover:text-accent transition-all" />
+                          <span className="text-[10px] text-muted font-mono uppercase tracking-tighter sm:hidden">Tap</span>
+                        </>
                       )}
                     </div>
                   </div>

@@ -4,6 +4,9 @@
   "description": "",
   "main": "index.js",
   "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
@@ -20,7 +23,9 @@
     "fs-extra": "^11.3.4",
     "multer": "^2.1.1",
     "nanoid": "^5.1.7",
-    "nodemon": "^3.1.14",
     "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
   }
 }

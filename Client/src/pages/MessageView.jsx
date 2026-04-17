@@ -14,9 +14,31 @@ const MessageView = () => {
   const [copied, setCopied] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
 
+  const copyToClipboard = (text) => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+    } else {
+      // Fallback for non-HTTPS network URLs
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-9999px";
+      textArea.style.top = "0";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        document.execCommand('copy');
+      } catch (err) {
+        console.error('Fallback copy failed', err);
+      }
+      document.body.removeChild(textArea);
+    }
+  };
+
   const handleCopy = () => {
     if (session?.content) {
-      navigator.clipboard.writeText(session.content);
+      copyToClipboard(session.content);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -26,7 +48,7 @@ const MessageView = () => {
     if (!session) return;
 
     // Auto-copy to clipboard
-    await navigator.clipboard.writeText(session.content);
+    copyToClipboard(session.content);
     setCopied(true);
     setConfirmed(true);
 
@@ -103,7 +125,7 @@ const MessageView = () => {
     <motion.div 
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      className="max-w-2xl mx-auto py-12 space-y-8"
+      className="max-w-2xl mx-auto py-6 sm:py-12 px-4 space-y-6 sm:space-y-8"
     >
       <div className="flex items-center justify-between">
           <Link to="/" className="p-2 -ml-2 text-muted hover:text-text transition-colors">
@@ -113,9 +135,9 @@ const MessageView = () => {
           <div className="w-8" />
       </div>
 
-      <div className="bg-panel border-2 border-border p-8 rounded-3xl relative overflow-hidden">
+      <div className="bg-panel border-2 border-border p-5 sm:p-8 rounded-2xl sm:rounded-3xl relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-1 bg-accent/20" />
-        <p className="text-lg leading-relaxed whitespace-pre-wrap break-words select-all">
+        <p className="text-base sm:text-lg leading-relaxed whitespace-pre-wrap break-words select-all">
           {session.content}
         </p>
         <div className="mt-6 pt-4 border-t border-border flex justify-end">

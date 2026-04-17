@@ -74,5 +74,4 @@ coverage/
 *.local
 
 
-.env
-.env.example
+.env

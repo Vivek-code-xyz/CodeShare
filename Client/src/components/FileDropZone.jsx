@@ -48,7 +48,7 @@ const FileDropZone = ({ onFilesAdded }) => {
         'cursor-pointer transition-colors duration-200 select-none',
         isDragging
           ? 'border-accent bg-accent/8 border-solid'
-          : 'border-border hover:border-accent/60 hover:bg-accent/5 bg-panel',
+          : 'border-border hover:border-accent/60 hover:bg-accent/5 bg-panel active:bg-accent/10',
       ].join(' ')}
     >
       <input
@@ -70,9 +70,9 @@ const FileDropZone = ({ onFilesAdded }) => {
       {/* Text */}
       <div className="text-center space-y-1.5 px-6">
         <p className={`text-base font-semibold transition-colors ${isDragging ? 'text-accent' : 'text-text'}`}>
-          {isDragging ? 'Release to add files' : 'Drag files here or click to browse'}
+          {isDragging ? 'Release to add files' : 'Tap to browse or drag files here'}
         </p>
-        <p className="text-sm text-muted">Up to 5 files, 60 MB each</p>
+        <p className="text-sm text-muted">Up to 5 files · 60 MB each</p>
       </div>
     </motion.div>
   );

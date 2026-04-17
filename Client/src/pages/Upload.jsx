@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion'
 import useStore from '../store/useStore';
 import FileDropZone from '../components/FileDropZone';
 import FileCard from '../components/FileCard';
@@ -81,7 +81,7 @@ const Upload = () => {
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      className="w-full max-w-2xl mx-auto py-10 px-4 space-y-6"
+      className="w-full max-w-2xl mx-auto py-6 sm:py-10 px-4 space-y-6"
     >
       {/* Header */}
       <div className="flex items-center gap-4 mb-2">
@@ -121,7 +121,7 @@ const Upload = () => {
           {isUploading ? (
             <>
               <Loader2Icon size={20} className="animate-spin" />
-              Uploading to Cloudinary...
+               Generating Link...
             </>
           ) : (
             <>

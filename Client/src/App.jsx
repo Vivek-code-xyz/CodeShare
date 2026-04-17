@@ -58,10 +58,10 @@ function App() {
   const fontClass = `font-${font.toLowerCase().replace(/\s+/g, '')}`;
 
   return (
-    <div className={`h-screen flex flex-col overflow-hidden ${fontClass} transition-all duration-300`}>
+    <div className={`min-h-[100dvh] flex flex-col ${fontClass} transition-all duration-300`}>
       <Router>
         <Navbar />
-        <main className="flex-1 w-full px-4 sm:px-8 overflow-y-auto flex flex-col">
+        <main className="flex-1 w-full px-4 sm:px-8 flex flex-col">
             <AnimatedRoutes />
         </main>
         
