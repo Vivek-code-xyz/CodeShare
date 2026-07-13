@@ -9,7 +9,7 @@ const useStore = create(
   persist(
     (set) => ({
       // Settings
-      theme: 'dark',
+      theme: 'tricolor',
       font: 'Geist',
       setTheme: (theme) => set({ theme }),
       setFont: (font) => set({ font }),

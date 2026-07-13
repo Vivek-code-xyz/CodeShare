@@ -1,22 +1,37 @@
 /**
  * server/src/routes/file.js
- * API routes for file uploads — backed by Cloudinary.
+ * API routes for file uploads backed by Cloudinary.
  */
 import express from 'express';
 import multer from 'multer';
 import { nanoid } from 'nanoid';
 import { Readable } from 'stream';
-import { fileStore } from '../store.js';
+import { fileCodeStore, fileStore } from '../store.js';
 import { purgeFileSession } from '../utils/cleanup.js';
 import { uploadToCloudinary, buildCloudinaryDeliveryUrl } from '../utils/cloudinary.js';
 
 const router = express.Router();
 
-// Multer: memory storage — no local disk writes
+// Multer: memory storage, no local disk writes
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: (parseInt(process.env.MAX_FILE_SIZE_MB) || 60) * 1024 * 1024 }
 });
+
+const generateReceiveCode = () => {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        if (!fileCodeStore.has(code)) return code;
+    }
+
+    throw new Error('Unable to generate a unique receive code');
+};
+
+const getActiveSession = (id) => {
+    const session = fileStore.get(id);
+    if (!session || Date.now() > session.expiresAt) return null;
+    return session;
+};
 
 // POST /api/file/upload
 router.post('/upload', upload.array('files', 5), async (req, res) => {
@@ -26,6 +41,7 @@ router.post('/upload', upload.array('files', 5), async (req, res) => {
         }
 
         const sessionId = nanoid(10);
+        const code = generateReceiveCode();
         const expiresAt = Date.now() + (parseInt(process.env.SESSION_TTL_FILE_MIN) || 7) * 60000;
 
         // Upload all files to Cloudinary in parallel
@@ -50,20 +66,24 @@ router.post('/upload', upload.array('files', 5), async (req, res) => {
 
         const session = {
             id: sessionId,
+            code,
             files: uploadedFiles,
             createdAt: Date.now(),
             expiresAt,
         };
 
         fileStore.set(sessionId, session);
-        console.log(`[Upload] Session ${sessionId} created — ${uploadedFiles.length} file(s) on Cloudinary`);
+        fileCodeStore.set(code, sessionId);
+        console.log(`[Upload] Session ${sessionId} created with receive code ${code} - ${uploadedFiles.length} file(s) on Cloudinary`);
 
         // Determine the frontend origin dynamically
         const origin = process.env.CLIENT_ORIGIN || `${req.protocol}://${req.get('host')}`.replace(`:${process.env.PORT || 5000}`, ':5173');
 
         res.json({
             id: sessionId,
+            code,
             shareUrl: `${origin}/file/${sessionId}`,
+            codeUrl: `${origin}/file/code/${code}`,
             expiresAt,
         });
     } catch (err) {
@@ -72,7 +92,36 @@ router.post('/upload', upload.array('files', 5), async (req, res) => {
     }
 });
 
-// GET /api/file/download/:id/:fileIndex — proxy stream (Cloudinary URL never exposed)
+// GET /api/file/code/:code - resolve a six-digit receive code to session metadata
+router.get('/code/:code', (req, res) => {
+    const { code } = req.params;
+
+    if (!/^\d{6}$/.test(code)) {
+        return res.status(400).json({ error: 'Enter a valid 6-digit code' });
+    }
+
+    const sessionId = fileCodeStore.get(code);
+    const session = sessionId ? getActiveSession(sessionId) : null;
+
+    if (!session) {
+        if (sessionId) fileCodeStore.delete(code);
+        return res.status(404).json({ error: 'Code not found or expired' });
+    }
+
+    res.json({
+        id: session.id,
+        code: session.code,
+        files: session.files.map(f => ({
+            originalName: f.originalName,
+            size: f.size,
+            mimeType: f.mimeType,
+            downloaded: f.downloaded,
+        })),
+        expiresAt: session.expiresAt,
+    });
+});
+
+// GET /api/file/download/:id/:fileIndex - proxy stream (Cloudinary URL never exposed)
 router.get('/download/:id/:fileIndex', async (req, res) => {
     const { id, fileIndex } = req.params;
     const session = fileStore.get(id);
@@ -134,7 +183,7 @@ router.get('/download/:id/:fileIndex', async (req, res) => {
     }
 });
 
-// GET /api/file/:id — session metadata
+// GET /api/file/:id - session metadata
 router.get('/:id', (req, res) => {
     const session = fileStore.get(req.params.id);
 
@@ -148,6 +197,7 @@ router.get('/:id', (req, res) => {
 
     res.json({
         id: session.id,
+        code: session.code,
         files: session.files.map(f => ({
             originalName: f.originalName,
             size: f.size,

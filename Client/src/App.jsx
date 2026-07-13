@@ -18,6 +18,7 @@ const AnimatedRoutes = () => {
       <Routes location={location} key={location.pathname}>
         <Route path="/" element={<Home />} />
         <Route path="/upload" element={<Upload />} />
+        <Route path="/file/code/:code" element={<FileView />} />
         <Route path="/file/:id" element={<FileView />} />
         <Route path="/message" element={<MessageCompose />} />
         <Route path="/message/:id" element={<MessageView />} />

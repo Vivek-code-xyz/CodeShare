@@ -1,19 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { clsx } from 'clsx';
 
+const calculateTimeLeft = (expiresAt) => {
+  const difference = expiresAt - Date.now();
+  return Math.max(0, Math.floor(difference / 1000));
+};
+
 const CountdownTimer = ({ expiresAt }) => {
-  const [timeLeft, setTimeLeft] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(() => calculateTimeLeft(expiresAt));
 
   useEffect(() => {
-    const calculateTimeLeft = () => {
-      const difference = expiresAt - Date.now();
-      return Math.max(0, Math.floor(difference / 1000));
-    };
-
-    setTimeLeft(calculateTimeLeft());
-
     const timer = setInterval(() => {
-      const left = calculateTimeLeft();
+      const left = calculateTimeLeft(expiresAt);
       setTimeLeft(left);
       if (left <= 0) clearInterval(timer);
     }, 1000);
@@ -26,14 +24,14 @@ const CountdownTimer = ({ expiresAt }) => {
   const display = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
   const getColorClass = () => {
-    if (timeLeft < 30) return "text-danger countdown-pulse";
-    if (timeLeft < 120) return "text-yellow-500";
-    return "text-muted";
+    if (timeLeft < 30) return 'text-danger countdown-pulse';
+    if (timeLeft < 120) return 'text-yellow-500';
+    return 'text-muted';
   };
 
   return (
     <div className="flex flex-col items-center gap-1">
-      <span className={clsx("text-3xl font-mono font-bold transition-colors", getColorClass())}>
+      <span className={clsx('text-3xl font-mono font-bold transition-colors', getColorClass())}>
         {display}
       </span>
       <span className="text-[10px] uppercase tracking-widest text-muted">Expires In</span>

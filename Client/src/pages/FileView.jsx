@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { DownloadIcon, FileIcon, ShieldAlertIcon, HardDriveIcon, ArrowLeftIcon, CheckCircle2Icon } from 'lucide-react';
+import { DownloadIcon, FileIcon, ShieldAlertIcon, HardDriveIcon, ArrowLeftIcon, CheckCircle2Icon, HashIcon } from 'lucide-react';
 import CountdownTimer from '../components/CountdownTimer';
 import { getApiUrl } from '../lib/api';
 
 const FileView = () => {
-  const { id } = useParams();
+  const { id, code } = useParams();
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -19,9 +19,9 @@ const FileView = () => {
   useEffect(() => {
     const fetchSession = async () => {
       try {
-        const response = await axios.get(getApiUrl(`/api/file/${id}`));
+        const endpoint = code ? `/api/file/code/${code}` : `/api/file/${id}`;
+        const response = await axios.get(getApiUrl(endpoint));
         setSession(response.data);
-        // Pre-fill already-downloaded files from server state
         const alreadyDownloaded = new Set();
         response.data.files.forEach((f, i) => {
           if (f.downloaded) alreadyDownloaded.add(i);
@@ -34,11 +34,11 @@ const FileView = () => {
       }
     };
     fetchSession();
-  }, [id]);
+  }, [id, code]);
 
   const handleDownload = async (index) => {
     const file = session.files[index];
-    const downloadUrl = getApiUrl(`/api/file/download/${id}/${index}`);
+    const downloadUrl = getApiUrl(`/api/file/download/${session.id}/${index}`);
 
     try {
       setDownloadError(null);
@@ -68,14 +68,12 @@ const FileView = () => {
 
       setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
 
-      // Mark locally as downloaded
       setDownloadedFiles(prev => {
         const next = new Set(prev);
         next.add(index);
         if (session && next.size >= session.files.length) {
           setAllDone(true);
         } else {
-          // Show success toast/popup for individual file
           setShowSuccessPopup(true);
           setTimeout(() => setShowSuccessPopup(false), 3000);
         }
@@ -103,7 +101,7 @@ const FileView = () => {
   );
 
   if (error) return (
-    <motion.div 
+    <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         className="max-w-xl mx-auto py-24 text-center space-y-6"
@@ -111,9 +109,9 @@ const FileView = () => {
         <div className="inline-flex p-6 bg-danger/10 text-danger rounded-full border border-danger/20">
             <ShieldAlertIcon size={48} />
         </div>
-        <h2 className="text-4xl font-instrument">Drop Expired</h2>
+        <h2 className="text-4xl font-instrument">Drop Unavailable</h2>
         <p className="text-muted max-w-sm mx-auto">
-            This file drop has been fully claimed or reached its expiration time. All files have been purged.
+            {error}
         </p>
         <Link to="/" className="inline-block px-8 py-3 bg-panel border border-border rounded-xl hover:bg-border transition-colors">
             Return Home
@@ -122,7 +120,7 @@ const FileView = () => {
   );
 
   if (allDone) return (
-    <motion.div 
+    <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         className="max-w-xl mx-auto py-24 text-center space-y-6"
@@ -132,7 +130,7 @@ const FileView = () => {
         </div>
         <h2 className="text-4xl font-instrument">All Files Claimed</h2>
         <p className="text-muted max-w-sm mx-auto">
-            Every file in this drop has been downloaded. The share link will be invalidated shortly.
+            Every file in this drop has been downloaded. The share link and receive code will be invalidated shortly.
         </p>
         <Link to="/" className="inline-block px-8 py-3 bg-accent text-surface rounded-xl hover:scale-[1.02] active:scale-95 transition-all font-bold">
             Return Home
@@ -143,7 +141,7 @@ const FileView = () => {
   const remainingCount = session.files.length - downloadedFiles.size;
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       className="max-w-3xl mx-auto py-8 px-4 space-y-6 md:space-y-8"
@@ -157,7 +155,7 @@ const FileView = () => {
             className="fixed top-0 left-1/2 z-50 px-6 py-3 bg-accent text-surface rounded-full shadow-2xl font-bold flex items-center gap-2"
           >
             <CheckCircle2Icon size={18} />
-            <span>File Shared Successfully!</span>
+            <span>File downloaded</span>
           </motion.div>
         )}
       </AnimatePresence>
@@ -169,6 +167,16 @@ const FileView = () => {
           <div className="w-8" />
       </div>
 
+      {session.code && (
+        <div className="bg-panel border border-border rounded-2xl p-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 text-muted">
+            <HashIcon size={18} className="text-accent" />
+            <span className="text-xs font-mono uppercase tracking-widest">Receive Code</span>
+          </div>
+          <span className="text-lg font-black tracking-[0.2em]">{session.code}</span>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2 space-y-4">
           <div className="bg-panel border border-border rounded-2xl overflow-hidden">
@@ -179,13 +187,13 @@ const FileView = () => {
                 </div>
                 <span className="badge badge-sm badge-outline font-mono opacity-50">{session.files.length}</span>
             </div>
-            
+
             <div className="divide-y divide-border">
               {session.files.map((file, idx) => {
                 const isDownloaded = downloadedFiles.has(idx);
                 return (
-                  <div 
-                    key={idx} 
+                  <div
+                    key={idx}
                     className={`group p-4 flex items-center justify-between transition-colors ${isDownloaded ? 'bg-accent/5 opacity-60' : 'hover:bg-surface/30 cursor-pointer'}`}
                     onClick={() => !isDownloaded && handleDownload(idx)}
                   >
@@ -211,7 +219,7 @@ const FileView = () => {
               })}
             </div>
           </div>
-          
+
           {remainingCount > 0 && (
             <button
               onClick={handleDownloadAll}
@@ -236,12 +244,12 @@ const FileView = () => {
             <p className="text-xs font-mono text-muted uppercase tracking-widest">Progress</p>
             <p className="text-sm font-medium">{downloadedFiles.size} / {session.files.length} claimed</p>
             <div className="w-full h-1.5 bg-surface rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-accent transition-all duration-500" 
+              <div
+                className="h-full bg-accent transition-all duration-500"
                 style={{ width: `${(downloadedFiles.size / session.files.length) * 100}%` }}
               />
             </div>
-            <p className="text-xs text-muted">Link invalidates once all files are claimed</p>
+            <p className="text-xs text-muted">Link and code invalidate once all files are claimed</p>
           </div>
         </div>
       </div>

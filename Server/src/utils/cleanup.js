@@ -2,7 +2,7 @@
  * server/src/utils/cleanup.js
  * Periodically purge expired sessions and delete associated Cloudinary files.
  */
-import { fileStore, messageStore } from '../store.js';
+import { fileCodeStore, fileStore, messageStore } from '../store.js';
 import { deleteFromCloudinary } from './cloudinary.js';
 
 export const startCleanupJob = () => {
@@ -28,6 +28,10 @@ export const startCleanupJob = () => {
 };
 
 export const purgeFileSession = async (id, session) => {
+    if (session?.code) {
+        fileCodeStore.delete(session.code);
+    }
+
     if (session.files && session.files.length > 0) {
         for (const file of session.files) {
             if (file.publicId) {

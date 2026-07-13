@@ -5,7 +5,7 @@ import FileDropZone from '../components/FileDropZone';
 import FileCard from '../components/FileCard';
 import ShareLinkBox from '../components/ShareLinkBox';
 import axios from 'axios';
-import { AlertCircleIcon, Loader2Icon, ArrowLeftIcon, SparklesIcon, ClockIcon } from 'lucide-react';
+import { AlertCircleIcon, Loader2Icon, ArrowLeftIcon, SparklesIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import CountdownTimer from '../components/CountdownTimer';
 import { getApiUrl } from '../lib/api';
@@ -37,6 +37,7 @@ const Upload = () => {
       // Force correct frontend origin on share link regardless of backend reply
       const data = response.data;
       data.shareUrl = `${window.location.origin}/file/${data.id}`;
+      data.codeUrl = `${window.location.origin}/file/code/${data.code}`;
       setUploadSession(data);
       clearUploadFiles();
     } catch (err) {
@@ -58,10 +59,10 @@ const Upload = () => {
             <SparklesIcon size={36} />
           </div>
           <h2 className="text-4xl font-instrument">Drop Created!</h2>
-          <p className="text-muted text-sm">Anyone with this link can download your files for the next 7 minutes.</p>
+          <p className="text-muted text-sm">Share the code, link, or QR. Files stay available until the timer ends or everything is claimed.</p>
         </div>
 
-        <ShareLinkBox link={uploadSession.shareUrl} />
+        <ShareLinkBox link={uploadSession.shareUrl} code={uploadSession.code} />
 
         <div className="bg-panel border border-border p-6 rounded-xl flex flex-col items-center gap-2">
           <CountdownTimer expiresAt={uploadSession.expiresAt} />
@@ -90,7 +91,7 @@ const Upload = () => {
         </Link>
         <div>
           <h2 className="text-2xl font-instrument">Upload Files</h2>
-          <p className="text-xs text-muted font-mono mt-0.5">Up to 5 files · 60 MB each · 7 min expiry</p>
+          <p className="text-xs text-muted font-mono mt-0.5">Up to 5 files - 60 MB each - 7 min expiry</p>
         </div>
       </div>
 
@@ -121,12 +122,12 @@ const Upload = () => {
           {isUploading ? (
             <>
               <Loader2Icon size={20} className="animate-spin" />
-               Generating Link...
+               Generating Share Code...
             </>
           ) : (
             <>
               <SparklesIcon size={20} />
-              Generate Share Link ({uploadFiles.length} file{uploadFiles.length > 1 ? 's' : ''})
+              Generate Share Code ({uploadFiles.length} file{uploadFiles.length > 1 ? 's' : ''})
             </>
           )}
         </button>

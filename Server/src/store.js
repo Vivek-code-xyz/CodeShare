@@ -5,13 +5,14 @@
  */
 
 export const fileStore = new Map();
+export const fileCodeStore = new Map();
 export const messageStore = new Map();
 
 /**
  * FileSession shape:
- * { id, files: [{publicId, secureUrl, resourceType, originalName, size, mimeType, downloaded}],
+ * { id, code, files: [{publicId, secureUrl, resourceType, originalName, size, mimeType, downloaded}],
  *   createdAt, expiresAt }
- * 
+ *
  * MessageSession shape:
  * { id, content, createdAt, expiresAt, viewed, destroyOnRead: bool }
  */

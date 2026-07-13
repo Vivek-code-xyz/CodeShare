@@ -55,8 +55,8 @@ const MessageView = () => {
     // Destroy the message on the server
     try {
       await axios.delete(getApiUrl(`/api/message/${id}`));
-    } catch (err) {
-      // Already destroyed or expired — that's fine
+    } catch {
+      // Already destroyed or expired; that is fine.
     }
   };
 
