@@ -27,9 +27,6 @@ export const uploadToCloudinary = (buffer, originalName, mimeType) => {
         const resourceType = mimeType.startsWith('image/') ? 'image'
             : mimeType.startsWith('video/') ? 'video'
             : 'raw';
-        const format = originalName.includes('.')
-            ? originalName.split('.').pop().toLowerCase()
-            : undefined;
 
         const stream = cloudinary.uploader.upload_stream(
             {
@@ -45,7 +42,7 @@ export const uploadToCloudinary = (buffer, originalName, mimeType) => {
                     publicId: result.public_id,
                     secureUrl: result.secure_url,
                     resourceType: result.resource_type,
-                    format: result.format || format,
+                    format: result.format,
                 });
             }
         );
@@ -60,9 +57,6 @@ export const uploadToCloudinary = (buffer, originalName, mimeType) => {
  */
 export const buildCloudinaryDeliveryUrl = (publicId, resourceType = 'raw', attachmentName, explicitFormat) => {
     configure();
-    const format = explicitFormat || (attachmentName && attachmentName.includes('.')
-        ? attachmentName.split('.').pop().toLowerCase()
-        : undefined);
 
     return cloudinary.url(publicId, {
         resource_type: resourceType,
@@ -70,7 +64,7 @@ export const buildCloudinaryDeliveryUrl = (publicId, resourceType = 'raw', attac
         secure: true,
         sign_url: false,
         attachment: attachmentName || true,
-        ...(resourceType === 'raw' && format ? { format } : {}),
+        ...(explicitFormat ? { format: explicitFormat } : {}),
     });
 };
 
