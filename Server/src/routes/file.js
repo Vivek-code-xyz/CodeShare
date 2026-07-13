@@ -47,7 +47,7 @@ router.post('/upload', upload.array('files', 5), async (req, res) => {
         // Upload all files to Cloudinary in parallel
         const uploadedFiles = await Promise.all(
             req.files.map(async (f) => {
-                const { publicId, secureUrl, resourceType } = await uploadToCloudinary(
+                const { publicId, secureUrl, resourceType, format } = await uploadToCloudinary(
                     f.buffer,
                     f.originalname,
                     f.mimetype
@@ -56,6 +56,7 @@ router.post('/upload', upload.array('files', 5), async (req, res) => {
                     publicId,
                     secureUrl,
                     resourceType,
+                    format,
                     originalName: f.originalname,
                     size: f.size,
                     mimeType: f.mimetype,
@@ -137,7 +138,12 @@ router.get('/download/:id/:fileIndex', async (req, res) => {
     }
 
     try {
-        const preferredUrl = buildCloudinaryDeliveryUrl(file.publicId, file.resourceType, file.originalName);
+        const preferredUrl = buildCloudinaryDeliveryUrl(
+            file.publicId,
+            file.resourceType,
+            file.originalName,
+            file.format
+        );
         const fallbackUrl = file.secureUrl;
 
         let cloudRes = await fetch(preferredUrl);
