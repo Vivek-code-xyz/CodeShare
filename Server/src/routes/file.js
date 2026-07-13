@@ -138,24 +138,56 @@ router.get('/download/:id/:fileIndex', async (req, res) => {
     }
 
     try {
-        const preferredUrl = file.secureUrl || buildCloudinaryDeliveryUrl(
-            file.publicId,
-            file.resourceType,
-            file.originalName
-        );
-        const fallbackUrl = preferredUrl === file.secureUrl ? buildCloudinaryDeliveryUrl(
-            file.publicId,
-            file.resourceType,
-            file.originalName
-        ) : file.secureUrl;
+        const cloudinaryUrls = [
+            file.secureUrl,
+            buildCloudinaryDeliveryUrl(file.publicId, file.resourceType, file.originalName, file.format),
+        ].filter((url, index, urls) => url && urls.indexOf(url) === index);
 
-        let cloudRes = await fetch(preferredUrl);
-        if (!cloudRes.ok && fallbackUrl && fallbackUrl !== preferredUrl) {
-            cloudRes = await fetch(fallbackUrl);
+        const failedAttempts = [];
+        let cloudRes = null;
+
+        for (const url of cloudinaryUrls) {
+            const attemptRes = await fetch(url);
+            if (attemptRes.ok) {
+                cloudRes = attemptRes;
+                break;
+            }
+
+            let body = '';
+            try {
+                body = (await attemptRes.text()).replace(/\s+/g, ' ').trim().slice(0, 500);
+            } catch {
+                body = 'Unable to read Cloudinary error response body';
+            }
+
+            failedAttempts.push({
+                status: attemptRes.status,
+                statusText: attemptRes.statusText,
+                url,
+                body,
+            });
         }
 
-        if (!cloudRes.ok) {
-            return res.status(502).json({ error: 'Failed to retrieve file from storage' });
+        if (!cloudRes) {
+            const lastFailure = failedAttempts.at(-1);
+            console.error('[Download] Cloudinary retrieval failed:', {
+                sessionId: id,
+                fileIndex: idx,
+                publicId: file.publicId,
+                resourceType: file.resourceType,
+                mimeType: file.mimeType,
+                attempts: failedAttempts,
+            });
+
+            const providerMessage = lastFailure
+                ? `Cloudinary returned ${lastFailure.status} ${lastFailure.statusText}${lastFailure.body ? `: ${lastFailure.body}` : ''}`
+                : 'No Cloudinary delivery URL was available';
+
+            return res.status(502).json({
+                error: `Failed to retrieve file from storage. ${providerMessage}`,
+                provider: 'cloudinary',
+                status: lastFailure?.status,
+            });
         }
 
         res.setHeader('Content-Type', file.mimeType || 'application/octet-stream');

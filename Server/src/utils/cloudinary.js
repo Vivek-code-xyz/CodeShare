@@ -55,7 +55,7 @@ export const uploadToCloudinary = (buffer, originalName, mimeType) => {
  * Build a deterministic delivery URL for a stored Cloudinary asset.
  * Using SDK-generated URLs helps when provider-returned secure_url varies by resource type.
  */
-export const buildCloudinaryDeliveryUrl = (publicId, resourceType = 'raw', attachmentName, explicitFormat) => {
+export const buildCloudinaryDeliveryUrl = (publicId, resourceType = 'raw', _attachmentName, explicitFormat) => {
     configure();
 
     return cloudinary.url(publicId, {
@@ -63,7 +63,6 @@ export const buildCloudinaryDeliveryUrl = (publicId, resourceType = 'raw', attac
         type: 'upload',
         secure: true,
         sign_url: false,
-        attachment: attachmentName || true,
         ...(explicitFormat ? { format: explicitFormat } : {}),
     });
 };
