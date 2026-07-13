@@ -4,7 +4,6 @@
  */
 import { fileCodeStore, fileStore, messageStore } from '../store.js';
 import { deleteFromCloudinary } from './cloudinary.js';
-import { promises as fs } from 'fs';
 
 export const startCleanupJob = () => {
     setInterval(async () => {
@@ -35,16 +34,6 @@ export const purgeFileSession = async (id, session) => {
 
     if (session.files && session.files.length > 0) {
         for (const file of session.files) {
-            if (file.localPath) {
-                try {
-                    await fs.unlink(file.localPath);
-                } catch (err) {
-                    if (err.code !== 'ENOENT') {
-                        console.error(`[Cleanup] Error deleting local file ${file.localPath}:`, err.message);
-                    }
-                }
-            }
-
             if (file.publicId) {
                 await deleteFromCloudinary(file.publicId, file.resourceType || 'raw');
             }

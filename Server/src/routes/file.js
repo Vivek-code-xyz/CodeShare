@@ -6,8 +6,6 @@ import express from 'express';
 import multer from 'multer';
 import { nanoid } from 'nanoid';
 import { Readable } from 'stream';
-import path from 'path';
-import { promises as fs } from 'fs';
 import { fileCodeStore, fileStore } from '../store.js';
 import { purgeFileSession } from '../utils/cleanup.js';
 import { uploadToCloudinary, buildCloudinaryDeliveryUrl } from '../utils/cloudinary.js';
@@ -19,19 +17,6 @@ const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: (parseInt(process.env.MAX_FILE_SIZE_MB) || 60) * 1024 * 1024 }
 });
-
-const localUploadDir = path.resolve(process.cwd(), 'uploads');
-
-const ensureUploadDir = async () => {
-    await fs.mkdir(localUploadDir, { recursive: true });
-};
-
-const sanitizeFileName = (name) => name.replace(/[^a-zA-Z0-9._-]/g, '_');
-
-const getLocalFilePath = (sessionId, fileIndex, originalName) => {
-    const safeName = sanitizeFileName(originalName);
-    return path.join(localUploadDir, `${sessionId}-${fileIndex}-${safeName}`);
-};
 
 const generateReceiveCode = () => {
     for (let attempt = 0; attempt < 20; attempt += 1) {
@@ -58,29 +43,10 @@ router.post('/upload', upload.array('files', 5), async (req, res) => {
         const sessionId = nanoid(10);
         const code = generateReceiveCode();
         const expiresAt = Date.now() + (parseInt(process.env.SESSION_TTL_FILE_MIN) || 7) * 60000;
-        await ensureUploadDir();
 
         // Upload all files to Cloudinary in parallel
         const uploadedFiles = await Promise.all(
-            req.files.map(async (f, index) => {
-                const isPdf = f.mimetype === 'application/pdf';
-                const localPath = isPdf ? getLocalFilePath(sessionId, index, f.originalname) : null;
-
-                if (localPath) {
-                    await fs.writeFile(localPath, f.buffer);
-                    return {
-                        publicId: null,
-                        secureUrl: null,
-                        resourceType: 'raw',
-                        format: 'pdf',
-                        originalName: f.originalname,
-                        size: f.size,
-                        mimeType: f.mimetype,
-                        downloaded: false,
-                        localPath,
-                    };
-                }
-
+            req.files.map(async (f) => {
                 const { publicId, secureUrl, resourceType, format } = await uploadToCloudinary(
                     f.buffer,
                     f.originalname,
@@ -95,7 +61,6 @@ router.post('/upload', upload.array('files', 5), async (req, res) => {
                     size: f.size,
                     mimeType: f.mimetype,
                     downloaded: false,
-                    localPath: null,
                 };
             })
         );
@@ -173,36 +138,16 @@ router.get('/download/:id/:fileIndex', async (req, res) => {
     }
 
     try {
-        if (file.mimeType === 'application/pdf' && file.localPath) {
-            res.setHeader('Content-Type', file.mimeType || 'application/octet-stream');
-            res.setHeader(
-                'Content-Disposition',
-                `attachment; filename="${encodeURIComponent(file.originalName)}"`
-            );
-
-            const fileBuffer = await fs.readFile(file.localPath);
-            res.setHeader('Content-Length', fileBuffer.length);
-            res.end(fileBuffer);
-
-            session.files[idx].downloaded = true;
-
-            const allDownloaded = session.files.every(f => f.downloaded);
-            if (allDownloaded) {
-                console.log(`[Store] All files claimed for session ${id}. Purging immediately...`);
-                session.expiresAt = 0;
-                await purgeFileSession(id, session);
-            }
-
-            return;
-        }
-
-        const preferredUrl = buildCloudinaryDeliveryUrl(
+        const preferredUrl = file.secureUrl || buildCloudinaryDeliveryUrl(
             file.publicId,
             file.resourceType,
-            file.originalName,
-            file.format
+            file.originalName
         );
-        const fallbackUrl = file.secureUrl;
+        const fallbackUrl = preferredUrl === file.secureUrl ? buildCloudinaryDeliveryUrl(
+            file.publicId,
+            file.resourceType,
+            file.originalName
+        ) : file.secureUrl;
 
         let cloudRes = await fetch(preferredUrl);
         if (!cloudRes.ok && fallbackUrl && fallbackUrl !== preferredUrl) {
